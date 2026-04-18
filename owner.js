@@ -84,10 +84,10 @@ function initializeDashboard() {
     element.addEventListener("change", renderDashboard);
   });
 
-  clearFiltersButton.addEventListener("click", clearFilters);
-  loadSampleOrdersButton.addEventListener("click", loadSampleOrders);
-  clearAllOrdersButton.addEventListener("click", clearAllOrders);
-  clearAllOrdersToolbarButton.addEventListener("click", clearAllOrders);
+  clearFiltersButton?.addEventListener("click", clearFilters);
+  loadSampleOrdersButton?.addEventListener("click", loadSampleOrders);
+  clearAllOrdersButton?.addEventListener("click", clearAllOrders);
+  clearAllOrdersToolbarButton?.addEventListener("click", clearAllOrders);
 
   ordersList.addEventListener("click", handleOrderListClick);
   ordersList.addEventListener("change", handleOrderStatusChange);
@@ -126,7 +126,6 @@ function unlockOwnerDashboard(shouldFocusTop) {
     ownerDashboardShell.hidden = false;
   }
 
-  runOneTimeOrdersReset();
   initializeDashboard();
   trackAnalyticsEvent("owner_dashboard_unlocked", {
     focusTop: shouldFocusTop
@@ -541,15 +540,6 @@ function getOrders() {
 
 function setOrders(orders) {
   window.localStorage.setItem(ordersStorageKey, JSON.stringify(orders));
-}
-
-function runOneTimeOrdersReset() {
-  if (window.localStorage.getItem(ordersResetKey) === "done") {
-    return;
-  }
-
-  setOrders([]);
-  window.localStorage.setItem(ordersResetKey, "done");
 }
 
 function normalizeOrderTotals(order) {
