@@ -3,3 +3,4 @@ Allow: /
 Disallow: /owner.html
 
 Sitemap: https://granthpatni2007-web.github.io/Antarmanasweets-snacks/sitemap.xml
+Sitemap: https://granthpatni2007-web.github.io/Antarmanasweets-snacks/sitemap.txt
