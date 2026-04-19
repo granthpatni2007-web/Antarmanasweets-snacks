@@ -616,7 +616,7 @@ textarea {
 
 .payment-tabs {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 10px;
   padding: 10px;
   border-radius: 20px;
@@ -689,8 +689,8 @@ textarea {
   color: #1d7e65;
 }
 
-.upi-panel,
-.bank-panel {
+.qr-payment-panel,
+.cod-panel {
   border-radius: 24px;
   padding: 22px;
   background:
@@ -699,45 +699,50 @@ textarea {
   color: #f3f7ff;
 }
 
-.upi-panel {
+.qr-payment-panel {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) 220px;
   gap: 22px;
   align-items: center;
 }
 
-.upi-copy h4,
-.bank-panel h4 {
+.qr-copy h4,
+.cod-copy h4 {
   margin: 12px 0 10px;
   font-size: 2rem;
   letter-spacing: -0.04em;
 }
 
-.upi-copy p,
-.bank-panel p {
+.qr-copy p,
+.cod-copy p {
   margin: 0 0 18px;
   color: rgba(243, 247, 255, 0.8);
   line-height: 1.7;
 }
 
-.upi-id-box {
-  display: inline-flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 14px 16px;
+.cod-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.cod-detail-list {
+  display: grid;
+  gap: 14px;
+}
+
+.cod-detail-item {
+  padding: 16px;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.10);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.08);
 }
 
-.upi-id-box span {
-  font-size: 0.82rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+.cod-detail-item strong {
+  display: block;
+  margin-bottom: 6px;
 }
 
-.upi-id-box strong {
-  font-size: 1.15rem;
+.cod-detail-item span {
+  color: rgba(243, 247, 255, 0.78);
 }
 
 .qr-card {
@@ -756,44 +761,13 @@ textarea {
   font-weight: 700;
 }
 
-.qr-pattern {
-  width: 136px;
-  height: 136px;
-  border-radius: 12px;
-  background:
-    linear-gradient(90deg, #fff 16px, transparent 16px) 0 0 / 32px 32px,
-    linear-gradient(#fff 16px, transparent 16px) 0 0 / 32px 32px,
-    linear-gradient(90deg, transparent 8px, #fff 8px 24px, transparent 24px) 0 0 / 32px 32px,
-    linear-gradient(transparent 8px, #fff 8px 24px, transparent 24px) 0 0 / 32px 32px,
-    linear-gradient(135deg, #0e1522, #0e1522);
-  box-shadow: inset 0 0 0 8px #fff;
-}
-
-.bank-details {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  margin: 0;
-}
-
-.bank-details div {
-  padding: 16px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.bank-details dt {
-  margin-bottom: 6px;
-  color: rgba(243, 247, 255, 0.7);
-  font-size: 0.85rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.bank-details dd {
-  margin: 0;
-  font-weight: 800;
+.qr-photo {
+  width: 168px;
+  height: 168px;
+  object-fit: cover;
+  padding: 10px;
+  border-radius: 18px;
+  background: #ffffff;
 }
 
 .summary-card {
@@ -1065,7 +1039,6 @@ textarea {
 
   .product-grid,
   .form-grid,
-  .bank-details,
   .hero-stats {
     grid-template-columns: 1fr;
   }
@@ -1077,7 +1050,7 @@ textarea {
     align-items: stretch;
   }
 
-  .upi-panel {
+  .qr-payment-panel {
     grid-template-columns: 1fr;
   }
 

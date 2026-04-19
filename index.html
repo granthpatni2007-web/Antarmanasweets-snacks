@@ -30,7 +30,7 @@
     />
     <meta
       property="og:url"
-      content="https://granthpatni2007-web.github.io/Antarmanasweets-snacks/"
+      content="https://www.antarmanasweets.in/"
     />
     <meta name="twitter:card" content="summary_large_image" />
     <meta
@@ -43,7 +43,7 @@
     />
     <link
       rel="canonical"
-      href="https://granthpatni2007-web.github.io/Antarmanasweets-snacks/"
+      href="https://www.antarmanasweets.in/"
     />
     <link rel="stylesheet" href="styles.css" />
     <script type="application/ld+json">
@@ -51,7 +51,7 @@
         "@context": "https://schema.org",
         "@type": "Bakery",
         "name": "Antarmana Sweets & Snacks",
-        "url": "https://granthpatni2007-web.github.io/Antarmanasweets-snacks/",
+        "url": "https://www.antarmanasweets.in/",
         "telephone": "+91 7980232362",
         "email": "orders@antarmana.com",
         "description": "Traditional Indian sweets and snacks prepared fresh daily.",
@@ -156,8 +156,8 @@
                   <span>Small-batch preparation</span>
                 </article>
                 <article class="stat-card">
-                  <strong>UPI Ready</strong>
-                  <span>Simple checkout options</span>
+                  <strong>COD &amp; QR</strong>
+                  <span>Flexible payment options</span>
                 </article>
               </div>
             </div>
@@ -238,17 +238,7 @@
                       />
                     </label>
                   </div>
-                  <div class="form-grid">
-                    <label>
-                      <span>Email Address</span>
-                      <input
-                        id="email"
-                        name="email"
-                        type="email"
-                        placeholder="john@example.com"
-                        required
-                      />
-                    </label>
+                  <div class="form-grid single">
                     <label>
                       <span>Phone Number</span>
                       <input
@@ -290,16 +280,6 @@
                         required
                       />
                     </label>
-                    <label>
-                      <span>State / Province</span>
-                      <input
-                        id="state"
-                        name="state"
-                        type="text"
-                        placeholder="West Bengal"
-                        required
-                      />
-                    </label>
                   </div>
                   <div class="form-grid">
                     <label>
@@ -309,16 +289,6 @@
                         name="postalCode"
                         type="text"
                         placeholder="400001"
-                        required
-                      />
-                    </label>
-                    <label>
-                      <span>Country</span>
-                      <input
-                        id="country"
-                        name="country"
-                        type="text"
-                        placeholder="India"
                         required
                       />
                     </label>
@@ -350,192 +320,107 @@
                     <button
                       class="payment-tab active"
                       type="button"
-                      data-payment="upi"
+                      data-payment="cod"
                       role="tab"
                       aria-selected="true"
                     >
-                      UPI
+                      Cash on Delivery
                     </button>
                     <button
                       class="payment-tab"
                       type="button"
-                      data-payment="card"
+                      data-payment="qr"
                       role="tab"
                       aria-selected="false"
                     >
-                      Card
-                    </button>
-                    <button
-                      class="payment-tab"
-                      type="button"
-                      data-payment="bank"
-                      role="tab"
-                      aria-selected="false"
-                    >
-                      Bank
+                      QR
                     </button>
                   </div>
 
                   <div
                     class="payment-panel active"
-                    id="payment-upi"
+                    id="payment-cod"
                     role="tabpanel"
                   >
-                    <div class="upi-panel">
-                      <div class="upi-copy">
-                        <span class="panel-tag">Recommended</span>
-                        <h4>Pay with UPI</h4>
+                    <div class="cod-panel">
+                      <div class="cod-copy">
+                        <span class="panel-tag">Easy option</span>
+                        <h4>Cash on Delivery</h4>
                         <p>
-                          Scan the QR code with any UPI app or use the ID below
-                          to complete your payment.
+                          Place the order now and collect payment when the sweets
+                          or snacks are delivered to the customer.
                         </p>
-                        <div class="upi-id-box">
-                          <span>UPI ID</span>
-                          <strong>sapnapatni@okaxis</strong>
-                        </div>
                       </div>
-                      <div
-                        class="qr-card"
-                        aria-label="Decorative UPI QR preview"
-                      >
-                        <div class="qr-pattern"></div>
-                        <span>Scan to Pay</span>
+                      <div class="cod-detail-list">
+                        <div class="cod-detail-item">
+                          <strong>No advance payment</strong>
+                          <span>Customer pays at delivery time.</span>
+                        </div>
+                        <div class="cod-detail-item">
+                          <strong>Order first</strong>
+                          <span>Best for local and trusted deliveries.</span>
+                        </div>
                       </div>
                     </div>
                     <div class="payment-action-row">
                       <button
                         class="primary-button payment-action-button"
                         type="button"
-                        data-complete-payment="upi"
+                        data-complete-payment="cod"
                       >
-                        Complete UPI Payment
+                        Select Cash on Delivery
                       </button>
                       <p class="payment-action-copy">
-                        After payment is completed, the order button will unlock
-                        automatically.
+                        Confirm this option to unlock the order button.
                       </p>
                     </div>
                   </div>
 
                   <div
                     class="payment-panel"
-                    id="payment-card"
+                    id="payment-qr"
                     role="tabpanel"
                     hidden
                   >
-                    <div class="form-grid single">
-                      <label>
-                        <span>Name on Card</span>
-                        <input
-                          id="cardName"
-                          name="cardName"
-                          type="text"
-                          placeholder="John Doe"
-                        />
-                      </label>
-                    </div>
-                    <div class="form-grid single">
-                      <label>
-                        <span>Card Number</span>
-                        <input
-                          id="cardNumber"
-                          name="cardNumber"
-                          type="text"
-                          inputmode="numeric"
-                          placeholder="1234 5678 9012 3456"
-                        />
-                      </label>
-                    </div>
-                    <div class="form-grid">
-                      <label>
-                        <span>Expiry Date</span>
-                        <input
-                          id="cardExpiry"
-                          name="cardExpiry"
-                          type="text"
-                          placeholder="MM/YY"
-                        />
-                      </label>
-                      <label>
-                        <span>CVV</span>
-                        <input
-                          id="cardCvv"
-                          name="cardCvv"
-                          type="password"
-                          inputmode="numeric"
-                          placeholder="123"
-                        />
-                      </label>
-                    </div>
-                    <div class="payment-action-row">
-                      <button
-                        class="primary-button payment-action-button"
-                        type="button"
-                        data-complete-payment="card"
-                      >
-                        Complete Card Payment
-                      </button>
-                      <p class="payment-action-copy">
-                        Fill card details first, then complete payment to enable
-                        order placement.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div
-                    class="payment-panel"
-                    id="payment-bank"
-                    role="tabpanel"
-                    hidden
-                  >
-                    <div class="bank-panel">
-                      <div>
-                        <span class="panel-tag">Bank Transfer</span>
-                        <h4>Direct Bank Payment</h4>
+                    <div class="qr-payment-panel">
+                      <div class="qr-copy">
+                        <span class="panel-tag">QR</span>
+                        <h4>Pay by QR</h4>
                         <p>
-                          Use the following bank details and upload payment
-                          proof after transfer.
+                          Share or show the QR below for payment. Replace this
+                          sample image with your real payment QR code before
+                          taking live payments.
                         </p>
                       </div>
-                      <dl class="bank-details">
-                        <div>
-                          <dt>Account Name</dt>
-                          <dd>Sapna Patni</dd>
-                        </div>
-                        <div>
-                          <dt>Bank</dt>
-                          <dd>South Indian Bank</dd>
-                        </div>
-                        <div>
-                          <dt>Account Number</dt>
-                          <dd>XXXX XXXX 2481</dd>
-                        </div>
-                        <div>
-                          <dt>IFSC</dt>
-                          <dd>SBIN0000001</dd>
-                        </div>
-                      </dl>
+                      <div class="qr-card">
+                        <img
+                          class="qr-photo"
+                          src="qr-photo.svg"
+                          alt="Sample payment QR code"
+                        />
+                        <span>Payment QR</span>
+                      </div>
                     </div>
                     <div class="payment-action-row">
                       <button
                         class="primary-button payment-action-button"
                         type="button"
-                        data-complete-payment="bank"
+                        data-complete-payment="qr"
                       >
-                        Confirm Bank Transfer
+                        Confirm QR Payment
                       </button>
                       <p class="payment-action-copy">
-                        Confirm the transfer after payment is sent from your
-                        bank.
+                        Confirm after the customer finishes payment using the QR
+                        photo.
                       </p>
                     </div>
                   </div>
 
                   <div class="payment-status-box" id="paymentStatusBox">
-                    <strong id="paymentStatusTitle">Payment Pending</strong>
+                    <strong id="paymentStatusTitle">Payment Method Pending</strong>
                     <p id="paymentStatusText">
-                      Complete payment first. Until payment is successful, the
-                      order cannot be placed.
+                      Select cash on delivery or confirm QR payment to unlock the
+                      order button.
                     </p>
                   </div>
                 </section>

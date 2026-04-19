@@ -88,11 +88,7 @@ const placeOrderButton = document.getElementById("placeOrderButton");
 const paymentStatusBox = document.getElementById("paymentStatusBox");
 const paymentStatusTitle = document.getElementById("paymentStatusTitle");
 const paymentStatusText = document.getElementById("paymentStatusText");
-const cardNameInput = document.getElementById("cardName");
-const cardNumberInput = document.getElementById("cardNumber");
-const cardExpiryInput = document.getElementById("cardExpiry");
-const cardCvvInput = document.getElementById("cardCvv");
-let paymentState = createPendingPaymentState("upi");
+let paymentState = createPendingPaymentState("cod");
 
 if (closeCartButton) {
   closeCartButton.innerHTML = "&times;";
@@ -112,17 +108,6 @@ cartItems.addEventListener("click", handleCartClick);
 paymentTabs.forEach((button) => button.addEventListener("click", () => setActivePayment(button.dataset.payment)));
 paymentActionButtons.forEach((button) => {
   button.addEventListener("click", () => completePayment(button.dataset.completePayment));
-});
-[cardNameInput, cardNumberInput, cardExpiryInput, cardCvvInput].forEach((field) => {
-  if (!field) {
-    return;
-  }
-
-  field.addEventListener("input", () => {
-    if (paymentState.paid && paymentState.method === "card") {
-      resetPaymentState("card");
-    }
-  });
 });
 checkoutForm.addEventListener("submit", handleCheckoutSubmit);
 cartButton.addEventListener("click", openCart);
@@ -428,7 +413,7 @@ function resetPaymentState(method) {
 }
 
 function getActivePaymentMethod() {
-  return document.querySelector(".payment-tab.active")?.dataset.payment || "upi";
+  return document.querySelector(".payment-tab.active")?.dataset.payment || "cod";
 }
 
 function isPaymentCompleted(method) {
@@ -439,11 +424,6 @@ function completePayment(method) {
   const totals = getCartTotals();
   if (totals.itemCount === 0) {
     showToast("Add products to the cart before completing payment");
-    return;
-  }
-
-  if (method === "card" && !isCardPaymentReady()) {
-    showToast("Enter all card details before completing card payment");
     return;
   }
 
@@ -460,12 +440,10 @@ function completePayment(method) {
     total: totals.total
   });
   updatePaymentGate();
-  showToast(`${getPaymentLabel(method)} payment successful`);
-}
-
-function isCardPaymentReady() {
-  return [cardNameInput, cardNumberInput, cardExpiryInput, cardCvvInput].every((field) =>
-    field && field.value.trim()
+  showToast(
+    method === "cod"
+      ? "Cash on delivery selected"
+      : `${getPaymentLabel(method)} confirmed`
   );
 }
 
@@ -494,19 +472,31 @@ function updatePaymentGate() {
   paymentStatusBox.classList.toggle("is-paid", paymentReady);
 
   if (!hasItems) {
-    paymentStatusTitle.textContent = "Payment Pending";
-    paymentStatusText.textContent = "Add items to the cart before completing payment.";
+    paymentStatusTitle.textContent = "Payment Method Pending";
+    paymentStatusText.textContent =
+      "Add items to the cart before choosing cash on delivery or QR payment.";
     return;
   }
 
   if (paymentReady) {
-    paymentStatusTitle.textContent = `${getPaymentLabel(activePayment)} Payment Successful`;
-    paymentStatusText.textContent = `Payment reference ${paymentState.reference} completed. You can place the order now.`;
+    if (activePayment === "cod") {
+      paymentStatusTitle.textContent = "Cash on Delivery Selected";
+      paymentStatusText.textContent =
+        "Cash on delivery is selected. You can place the order now.";
+      return;
+    }
+
+    paymentStatusTitle.textContent = "QR Payment Confirmed";
+    paymentStatusText.textContent = `Payment reference ${paymentState.reference} confirmed. You can place the order now.`;
     return;
   }
 
-  paymentStatusTitle.textContent = "Payment Pending";
-  paymentStatusText.textContent = `Complete ${getPaymentLabel(activePayment)} payment first. Until payment is successful, order cannot be placed.`;
+  paymentStatusTitle.textContent =
+    activePayment === "cod" ? "Cash on Delivery Pending" : "QR Payment Pending";
+  paymentStatusText.textContent =
+    activePayment === "cod"
+      ? "Select cash on delivery first to unlock order placement."
+      : "Confirm QR payment first to unlock order placement.";
 }
 
 function handleCheckoutSubmit(event) {
@@ -522,9 +512,13 @@ function handleCheckoutSubmit(event) {
     return;
   }
 
-  const activePayment = document.querySelector(".payment-tab.active")?.dataset.payment || "upi";
+  const activePayment = document.querySelector(".payment-tab.active")?.dataset.payment || "cod";
   if (!isPaymentCompleted(activePayment)) {
-    showToast("Complete payment first. Until payment is successful, order cannot be placed");
+    showToast(
+      activePayment === "cod"
+        ? "Select cash on delivery first before placing the order"
+        : "Confirm QR payment first before placing the order"
+    );
     updatePaymentGate();
     return;
   }
@@ -546,8 +540,8 @@ function handleCheckoutSubmit(event) {
   Object.keys(cart).forEach((key) => delete cart[key]);
   saveCart();
   renderCart();
-  resetPaymentState("upi");
-  setActivePayment("upi");
+  resetPaymentState("cod");
+  setActivePayment("cod");
   document.getElementById("home").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -603,16 +597,13 @@ function buildOrderPayload(formData, paymentType, totals) {
 
   const customer = {
     name: String(formData.get("fullName") || "").trim(),
-    email: String(formData.get("email") || "").trim(),
     phone: String(formData.get("phone") || "").trim()
   };
 
   const address = {
     street: String(formData.get("street") || "").trim(),
     city: String(formData.get("city") || "").trim(),
-    state: String(formData.get("state") || "").trim(),
     postalCode: String(formData.get("postalCode") || "").trim(),
-    country: String(formData.get("country") || "").trim(),
     instructions: String(formData.get("instructions") || "").trim()
   };
 
@@ -623,9 +614,9 @@ function buildOrderPayload(formData, paymentType, totals) {
     status: "new",
     paymentMethod: paymentType,
     paymentLabel: getPaymentLabel(paymentType),
-    paymentStatus: "paid",
-    paymentReference: paymentState.reference,
-    paymentPaidAt: paymentState.paidAt,
+    paymentStatus: paymentType === "cod" ? "pending" : "paid",
+    paymentReference: paymentType === "cod" ? "" : paymentState.reference,
+    paymentPaidAt: paymentType === "cod" ? "" : paymentState.paidAt,
     customer,
     address,
     items,
@@ -641,15 +632,11 @@ function createOrderId() {
 }
 
 function getPaymentLabel(paymentType) {
-  if (paymentType === "card") {
-    return "Card";
+  if (paymentType === "cod") {
+    return "Cash on Delivery";
   }
 
-  if (paymentType === "bank") {
-    return "Bank Transfer";
-  }
-
-  return "UPI";
+  return "QR Payment";
 }
 
 function setupScrollSpy() {

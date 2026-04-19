@@ -47,8 +47,19 @@ const ordersList = document.getElementById("ordersList");
 const resultsCount = document.getElementById("resultsCount");
 const locationList = document.getElementById("locationList");
 const topProductsList = document.getElementById("topProductsList");
+const notificationBellButton = document.getElementById("notificationBellButton");
+const notificationBellLabel = document.getElementById("notificationBellLabel");
+const notificationBellText = document.getElementById("notificationBellText");
+const notificationBellBadge = document.getElementById("notificationBellBadge");
+const ownerNotificationLive = document.getElementById("ownerNotificationLive");
 const navLinks = document.querySelectorAll(".nav-link");
 let dashboardInitialized = false;
+let knownOrderIds = new Set();
+let unreadOrderIds = new Set();
+let latestNotificationText = "Waiting for new orders";
+let notificationAudioContext = null;
+let notificationRingTimeoutId = 0;
+const baseOwnerTitle = document.title;
 
 init();
 
@@ -60,6 +71,9 @@ function init() {
   ownerUnlockForm?.addEventListener("submit", handleOwnerUnlock);
   ownerPasscodeInput?.addEventListener("input", hideOwnerUnlockError);
   lockDashboardButton?.addEventListener("click", lockOwnerDashboard);
+  document.addEventListener("pointerdown", primeNotificationAudio, { once: true });
+  document.addEventListener("keydown", primeNotificationAudio, { once: true });
+  updateNotificationBell();
 
   if (window.sessionStorage.getItem(ownerAccessSessionKey) === "unlocked") {
     unlockOwnerDashboard(false);
@@ -72,11 +86,14 @@ function init() {
 function initializeDashboard() {
   if (dashboardInitialized) {
     renderDashboard();
+    updateNotificationBell();
     return;
   }
 
   dashboardInitialized = true;
+  syncKnownOrders(getOrders());
   renderDashboard();
+  updateNotificationBell();
   setupScrollSpy();
 
   [searchOrders, statusFilter, paymentFilter, cityFilter, sortOrders].forEach((element) => {
@@ -84,19 +101,209 @@ function initializeDashboard() {
     element.addEventListener("change", renderDashboard);
   });
 
+  notificationBellButton?.addEventListener("click", handleNotificationBellClick);
   clearFiltersButton?.addEventListener("click", clearFilters);
   loadSampleOrdersButton?.addEventListener("click", loadSampleOrders);
   clearAllOrdersButton?.addEventListener("click", clearAllOrders);
   clearAllOrdersToolbarButton?.addEventListener("click", clearAllOrders);
 
-  ordersList.addEventListener("click", handleOrderListClick);
-  ordersList.addEventListener("change", handleOrderStatusChange);
+  ordersList?.addEventListener("click", handleOrderListClick);
+  ordersList?.addEventListener("change", handleOrderStatusChange);
 
   window.addEventListener("storage", (event) => {
     if (event.key === ordersStorageKey) {
-      renderDashboard();
+      syncDashboardOrders("storage");
     }
   });
+  window.addEventListener("focus", handleOwnerWindowFocus);
+}
+
+function handleOwnerWindowFocus() {
+  syncDashboardOrders("focus");
+}
+
+function syncDashboardOrders(source) {
+  const orders = getOrders();
+  const incomingOrders = extractIncomingOrders(orders);
+
+  renderDashboard();
+  updateNotificationBell();
+
+  if (!incomingOrders.length) {
+    return;
+  }
+
+  notifyAboutIncomingOrders(incomingOrders, source);
+}
+
+function extractIncomingOrders(orders) {
+  const nextIds = new Set(
+    orders
+      .map((order) => String(order.id || "").trim())
+      .filter(Boolean)
+  );
+
+  unreadOrderIds = new Set([...unreadOrderIds].filter((orderId) => nextIds.has(orderId)));
+
+  const incomingOrders = orders.filter((order) => {
+    const orderId = String(order.id || "").trim();
+    return orderId && !knownOrderIds.has(orderId) && !isDemoOrder(order);
+  });
+
+  knownOrderIds = nextIds;
+  return incomingOrders;
+}
+
+function syncKnownOrders(orders) {
+  knownOrderIds = new Set(
+    orders
+      .map((order) => String(order.id || "").trim())
+      .filter(Boolean)
+  );
+  unreadOrderIds = new Set([...unreadOrderIds].filter((orderId) => knownOrderIds.has(orderId)));
+}
+
+function notifyAboutIncomingOrders(incomingOrders, source) {
+  incomingOrders.forEach((order) => {
+    unreadOrderIds.add(String(order.id || "").trim());
+  });
+
+  const newestOrder = incomingOrders[0] || null;
+  latestNotificationText =
+    incomingOrders.length === 1
+      ? `${newestOrder?.id || "New order"} from ${newestOrder?.customer?.name || "customer"}`
+      : `${incomingOrders.length} new orders received`;
+
+  updateNotificationBell();
+  triggerNotificationBell();
+  playNotificationBell();
+  announceNotification(
+    incomingOrders.length === 1
+      ? `New order ${newestOrder?.id || ""} received.`
+      : `${incomingOrders.length} new orders received.`
+  );
+  trackAnalyticsEvent("owner_new_order_alert", {
+    count: incomingOrders.length,
+    newestOrderId: newestOrder?.id || "",
+    source
+  });
+}
+
+function handleNotificationBellClick() {
+  primeNotificationAudio();
+  unreadOrderIds.clear();
+  latestNotificationText = knownOrderIds.size ? "No unread alerts" : "Waiting for new orders";
+  updateNotificationBell();
+  document.getElementById("orders")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function updateNotificationBell() {
+  if (!notificationBellButton || !notificationBellLabel || !notificationBellText || !notificationBellBadge) {
+    document.title = baseOwnerTitle;
+    return;
+  }
+
+  const unreadCount = unreadOrderIds.size;
+  const hasUnread = unreadCount > 0;
+  const hasOrders = knownOrderIds.size > 0;
+
+  notificationBellButton.classList.toggle("has-alert", hasUnread);
+  notificationBellBadge.hidden = !hasUnread;
+  notificationBellBadge.textContent = String(unreadCount);
+  notificationBellLabel.textContent = hasUnread
+    ? `${unreadCount} New Order${unreadCount === 1 ? "" : "s"}`
+    : "Order Alerts";
+  notificationBellText.textContent = hasUnread
+    ? latestNotificationText
+    : hasOrders
+      ? "No unread alerts"
+      : "Waiting for new orders";
+  notificationBellButton.setAttribute(
+    "aria-label",
+    hasUnread
+      ? `${unreadCount} new order alerts. Click to review orders.`
+      : "No new order alerts. Click to view orders."
+  );
+  document.title = hasUnread ? `(${unreadCount}) ${baseOwnerTitle}` : baseOwnerTitle;
+}
+
+function triggerNotificationBell() {
+  if (!notificationBellButton) {
+    return;
+  }
+
+  notificationBellButton.classList.remove("is-ringing");
+  void notificationBellButton.offsetWidth;
+  notificationBellButton.classList.add("is-ringing");
+  window.clearTimeout(notificationRingTimeoutId);
+  notificationRingTimeoutId = window.setTimeout(() => {
+    notificationBellButton.classList.remove("is-ringing");
+  }, 1400);
+  window.navigator.vibrate?.([120, 60, 120]);
+}
+
+function primeNotificationAudio() {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) {
+    return null;
+  }
+
+  if (!notificationAudioContext) {
+    notificationAudioContext = new AudioContextClass();
+  }
+
+  if (notificationAudioContext.state === "suspended") {
+    notificationAudioContext.resume().catch(() => {});
+  }
+
+  return notificationAudioContext;
+}
+
+function playNotificationBell() {
+  const audioContext = primeNotificationAudio();
+  if (!audioContext) {
+    return;
+  }
+
+  const startAt = audioContext.currentTime + 0.02;
+  const tones = [
+    { frequency: 880, duration: 0.16, delay: 0 },
+    { frequency: 1174.66, duration: 0.24, delay: 0.18 }
+  ];
+
+  tones.forEach((tone) => {
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    const toneStart = startAt + tone.delay;
+    const tonePeak = toneStart + 0.02;
+    const toneEnd = toneStart + tone.duration;
+
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(tone.frequency, toneStart);
+    gainNode.gain.setValueAtTime(0.0001, toneStart);
+    gainNode.gain.exponentialRampToValueAtTime(0.13, tonePeak);
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, toneEnd);
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    oscillator.start(toneStart);
+    oscillator.stop(toneEnd + 0.02);
+  });
+}
+
+function announceNotification(message) {
+  if (!ownerNotificationLive) {
+    return;
+  }
+
+  ownerNotificationLive.textContent = "";
+  window.setTimeout(() => {
+    ownerNotificationLive.textContent = message;
+  }, 20);
+}
+
+function isDemoOrder(order) {
+  return String(order?.id || "").startsWith("SP-DEMO-");
 }
 
 function handleOwnerUnlock(event) {
@@ -127,6 +334,7 @@ function unlockOwnerDashboard(shouldFocusTop) {
   }
 
   initializeDashboard();
+  primeNotificationAudio();
   trackAnalyticsEvent("owner_dashboard_unlocked", {
     focusTop: shouldFocusTop
   });
@@ -285,20 +493,14 @@ function renderOrderCard(order) {
               <strong>${escapeHtml(customer.phone || "-")}</strong>
               <span>Phone number</span>
             </div>
-            <div>
-              <strong>${escapeHtml(customer.email || "-")}</strong>
-              <span>Email address</span>
-            </div>
           </div>
           <div class="order-address-row">
             <p>
               ${escapeHtml(address.street || "")}<br>
-              ${escapeHtml(address.city || "")}, ${escapeHtml(address.state || "")} ${escapeHtml(address.postalCode || "")}<br>
-              ${escapeHtml(address.country || "")}
+              ${escapeHtml(address.city || "")} ${escapeHtml(address.postalCode || "")}
             </p>
             <div class="order-address-tags">
               <span class="address-chip">${escapeHtml(address.city || "Unknown city")}</span>
-              <span class="address-chip">${escapeHtml(address.state || "Unknown state")}</span>
             </div>
             <p class="order-note">${instructions}</p>
           </div>
@@ -432,7 +634,6 @@ function getFilteredOrders(orders) {
         order.id,
         order.customer?.name,
         order.customer?.phone,
-        order.customer?.email,
         order.address?.street,
         order.address?.city,
         order.address?.state,
@@ -540,6 +741,8 @@ function getOrders() {
 
 function setOrders(orders) {
   window.localStorage.setItem(ordersStorageKey, JSON.stringify(orders));
+  syncKnownOrders(orders);
+  updateNotificationBell();
 }
 
 function normalizeOrderTotals(order) {
@@ -558,18 +761,15 @@ function createSampleOrders() {
       id: "SP-DEMO-101",
       placedAt: "2026-04-16T09:10:00+05:30",
       status: "new",
-      paymentMethod: "upi",
+      paymentMethod: "cod",
       customer: {
         name: "Ankita Jain",
-        email: "ankita@example.com",
         phone: "+91 98261 24567"
       },
       address: {
         street: "42 MG Road, Flat 3B",
         city: "Indore",
-        state: "Madhya Pradesh",
         postalCode: "452001",
-        country: "India",
         instructions: "Call once before reaching the building gate."
       },
       items: [
@@ -581,18 +781,15 @@ function createSampleOrders() {
       id: "SP-DEMO-102",
       placedAt: "2026-04-16T08:05:00+05:30",
       status: "preparing",
-      paymentMethod: "card",
+      paymentMethod: "qr",
       customer: {
         name: "Rakesh Gupta",
-        email: "rakesh@example.com",
         phone: "+91 98930 77881"
       },
       address: {
         street: "12 Tower Chowk",
         city: "Ujjain",
-        state: "Madhya Pradesh",
         postalCode: "456001",
-        country: "India",
         instructions: "Please deliver after 4 PM."
       },
       items: [
@@ -604,18 +801,15 @@ function createSampleOrders() {
       id: "SP-DEMO-103",
       placedAt: "2026-04-15T19:20:00+05:30",
       status: "dispatched",
-      paymentMethod: "bank",
+      paymentMethod: "qr",
       customer: {
         name: "Pooja Sharma",
-        email: "pooja@example.com",
         phone: "+91 97555 22110"
       },
       address: {
         street: "88 Civil Lines",
         city: "Bhopal",
-        state: "Madhya Pradesh",
         postalCode: "462001",
-        country: "India",
         instructions: "Security desk will receive the parcel."
       },
       items: [
@@ -627,18 +821,15 @@ function createSampleOrders() {
       id: "SP-DEMO-104",
       placedAt: "2026-04-15T14:45:00+05:30",
       status: "completed",
-      paymentMethod: "upi",
+      paymentMethod: "cod",
       customer: {
         name: "Neha Maheshwari",
-        email: "neha@example.com",
         phone: "+91 93011 55442"
       },
       address: {
         street: "5 Station Road",
         city: "Dewas",
-        state: "Madhya Pradesh",
         postalCode: "455001",
-        country: "India",
         instructions: ""
       },
       items: [
@@ -669,15 +860,11 @@ function createSampleOrder(order) {
 }
 
 function getPaymentLabel(paymentType) {
-  if (paymentType === "card") {
-    return "Card";
+  if (paymentType === "cod") {
+    return "Cash on Delivery";
   }
 
-  if (paymentType === "bank") {
-    return "Bank Transfer";
-  }
-
-  return "UPI";
+  return "QR Payment";
 }
 
 function getStatusLabel(status) {

@@ -19,7 +19,7 @@
     />
     <link
       rel="canonical"
-      href="https://granthpatni2007-web.github.io/Antarmanasweets-snacks/owner.html"
+      href="https://www.antarmanasweets.in/owner.html"
     />
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="owner.css" />
@@ -78,6 +78,39 @@
           </nav>
 
           <div class="owner-access-links">
+            <button
+              class="owner-bell-button"
+              id="notificationBellButton"
+              type="button"
+              aria-label="No new order alerts. Click to view orders."
+            >
+              <span class="owner-bell-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <path
+                    d="M12 3a4 4 0 0 0-4 4v1.3c0 1.1-.4 2.2-1.1 3l-1.5 1.8a1 1 0 0 0 .8 1.6h11.6a1 1 0 0 0 .8-1.6l-1.5-1.8a4.8 4.8 0 0 1-1.1-3V7a4 4 0 0 0-4-4Z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="1.8"
+                  />
+                  <path
+                    d="M10 18a2 2 0 0 0 4 0"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-width="1.8"
+                  />
+                </svg>
+              </span>
+              <span class="owner-bell-copy">
+                <strong id="notificationBellLabel">Order Alerts</strong>
+                <small id="notificationBellText">Waiting for new orders</small>
+              </span>
+              <span class="owner-bell-badge" id="notificationBellBadge" hidden
+                >0</span
+              >
+            </button>
             <button
               class="secondary-button"
               id="lockDashboardButton"
@@ -189,9 +222,8 @@
                     <span>Payment</span>
                     <select id="paymentFilter">
                       <option value="all">All payments</option>
-                      <option value="upi">UPI</option>
-                      <option value="card">Card</option>
-                      <option value="bank">Bank Transfer</option>
+                      <option value="cod">Cash on Delivery</option>
+                      <option value="qr">QR Payment</option>
                     </select>
                   </label>
                   <label class="owner-filter-field">
@@ -271,6 +303,8 @@
         </section>
       </main>
     </div>
+
+    <p class="owner-notification-live" id="ownerNotificationLive" aria-live="polite"></p>
 
     <script src="analytics.js"></script>
     <script src="owner.js"></script>
