@@ -45,6 +45,11 @@
       rel="canonical"
       href="https://granthpatni2007-web.github.io/Antarmanasweets-snacks/"
     />
+    <script
+      async
+      src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4705932888563006"
+      crossorigin="anonymous"
+    ></script>
     <link rel="stylesheet" href="styles.css" />
     <script type="application/ld+json">
       {
@@ -53,7 +58,6 @@
         "name": "Antarmana Sweets & Snacks",
         "url": "https://granthpatni2007-web.github.io/Antarmanasweets-snacks/",
         "telephone": "+91 7980232362",
-        "email": "orders@antarmana.com",
         "description": "Traditional Indian sweets and snacks prepared fresh daily.",
         "address": {
           "@type": "PostalAddress",
@@ -61,23 +65,7 @@
           "addressLocality": "Howrah, Kolkata",
           "addressRegion": "West Bengal",
           "addressCountry": "IN"
-        },
-        "openingHoursSpecification": [
-          {
-            "@type": "OpeningHoursSpecification",
-            "dayOfWeek": [
-              "Monday",
-              "Tuesday",
-              "Wednesday",
-              "Thursday",
-              "Friday",
-              "Saturday",
-              "Sunday"
-            ],
-            "opens": "09:00",
-            "closes": "20:30"
-          }
-        ]
+        }
       }
     </script>
   </head>
@@ -148,7 +136,7 @@
               </div>
               <div class="hero-stats" aria-label="Store highlights">
                 <article class="stat-card">
-                  <strong>10+</strong>
+                  <strong>5+</strong>
                   <span>Signature items</span>
                 </article>
                 <article class="stat-card">
@@ -170,7 +158,7 @@
                   Rich, festive and handcrafted for gifting or family
                   celebrations.
                 </p>
-                <strong>₹600 / kg</strong>
+                <strong>Rs 650 / kg</strong>
               </div>
               <div class="hero-card hero-card-small">
                 <span>Snacks</span>
@@ -257,6 +245,9 @@
                     <span class="step-badge">2</span>
                     <h3>Delivery Address</h3>
                   </div>
+                  <p class="form-delivery-note">
+                    The item will be delivered within 2 days of order.
+                  </p>
                   <div class="form-grid single">
                     <label>
                       <span>Street Address</span>
@@ -289,6 +280,17 @@
                         name="postalCode"
                         type="text"
                         placeholder="400001"
+                        required
+                      />
+                    </label>
+                  </div>
+                  <div class="form-grid">
+                    <label>
+                      <span>Delivery Date</span>
+                      <input
+                        id="deliveryDate"
+                        name="deliveryDate"
+                        type="date"
                         required
                       />
                     </label>
@@ -346,10 +348,6 @@
                       <div class="cod-copy">
                         <span class="panel-tag">Easy option</span>
                         <h4>Cash on Delivery</h4>
-                        <p>
-                          Place the order now and collect payment when the sweets
-                          or snacks are delivered to the customer.
-                        </p>
                       </div>
                       <div class="cod-detail-list">
                         <div class="cod-detail-item">
@@ -387,40 +385,41 @@
                         <span class="panel-tag">QR</span>
                         <h4>Pay by QR</h4>
                         <p>
-                          Share or show the QR below for payment. Replace this
-                          sample image with your real payment QR code before
-                          taking live payments.
+                          Scan this QR with any UPI app to pay directly to
+                          Muskan Patni.
                         </p>
+                        <p class="qr-highlight-note">
+                          <strong>
+                            Online payment ke baad payment screenshot
+                            WhatsApp par send karein.
+                          </strong>
+                        </p>
+                        <div class="qr-payment-actions">
+                          <button
+                            class="secondary-button"
+                            id="sendScreenshotWhatsAppButton"
+                            type="button"
+                          >
+                            Send Payment Screenshot on WhatsApp
+                          </button>
+                        </div>
                       </div>
                       <div class="qr-card">
                         <img
                           class="qr-photo"
-                          src="qr-photo.svg"
-                          alt="Sample payment QR code"
+                          src="assets/payment-qr.jpeg"
+                          alt="UPI payment QR code for Muskan Patni"
                         />
-                        <span>Payment QR</span>
+                        <span>Muskan Patni UPI QR</span>
                       </div>
-                    </div>
-                    <div class="payment-action-row">
-                      <button
-                        class="primary-button payment-action-button"
-                        type="button"
-                        data-complete-payment="qr"
-                      >
-                        Confirm QR Payment
-                      </button>
-                      <p class="payment-action-copy">
-                        Confirm after the customer finishes payment using the QR
-                        photo.
-                      </p>
                     </div>
                   </div>
 
                   <div class="payment-status-box" id="paymentStatusBox">
                     <strong id="paymentStatusTitle">Payment Method Pending</strong>
                     <p id="paymentStatusText">
-                      Select cash on delivery or confirm QR payment to unlock the
-                      order button.
+                      Select cash on delivery or QR payment to unlock the order
+                      button.
                     </p>
                   </div>
                 </section>
@@ -434,15 +433,15 @@
                 <div class="summary-items" id="summaryItems"></div>
                 <div class="summary-line">
                   <span>Subtotal</span>
-                  <strong id="summarySubtotal">₹0</strong>
+                  <strong id="summarySubtotal">?0</strong>
                 </div>
                 <div class="summary-line">
                   <span>Delivery</span>
-                  <strong id="summaryShipping">₹0</strong>
+                  <strong id="summaryShipping">?0</strong>
                 </div>
                 <div class="summary-line total">
                   <span>Total</span>
-                  <strong id="summaryTotal">₹0</strong>
+                  <strong id="summaryTotal">?0</strong>
                 </div>
                 <button
                   class="primary-button place-order-button"
@@ -450,11 +449,12 @@
                   type="submit"
                   form="checkoutForm"
                 >
-                  Place Order Request
+                  Place Order & Send WhatsApp
                 </button>
                 <p class="summary-note">
-                  Submitted orders are saved locally and appear in the owner
-                  dashboard for review.
+                  After submitting, WhatsApp will open with the order details.
+                  Press Send so the owner receives it on phone. The item will be
+                  delivered within 2 days of order.
                 </p>
               </aside>
             </div>
@@ -485,14 +485,6 @@
                 <h3>Phone</h3>
                 <p>+91 7980232362</p>
               </article>
-              <article class="contact-card">
-                <h3>Email</h3>
-                <p>orders@antarmana.com</p>
-              </article>
-              <article class="contact-card">
-                <h3>Hours</h3>
-                <p>Mon - Sun: 9:00 AM to 8:30 PM</p>
-              </article>
             </div>
           </div>
         </section>
@@ -508,8 +500,10 @@
             </p>
           </div>
           <div class="footer-links">
+            <a href="about.html">About Us</a>
+            <a href="contact-us.html">Contact Us</a>
+            <a href="privacy-policy.html">Privacy Policy</a>
             <a href="owner.html" rel="nofollow">Owner Login</a>
-            <a href="sitemap.html">Sitemap</a>
             <a href="#home">Back to top</a>
           </div>
         </div>
@@ -537,15 +531,15 @@
       <div class="cart-footer">
         <div class="summary-line">
           <span>Subtotal</span>
-          <strong id="drawerSubtotal">₹0</strong>
+          <strong id="drawerSubtotal">?0</strong>
         </div>
         <div class="summary-line">
           <span>Delivery</span>
-          <strong id="drawerShipping">₹0</strong>
+          <strong id="drawerShipping">?0</strong>
         </div>
         <div class="summary-line total">
           <span>Total</span>
-          <strong id="drawerTotal">₹0</strong>
+          <strong id="drawerTotal">?0</strong>
         </div>
         <button class="primary-button" id="drawerCheckoutButton" type="button">
           Proceed to Checkout
@@ -563,7 +557,9 @@
     <div class="overlay" id="overlay" hidden></div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+    <script src="site-config.js"></script>
     <script src="analytics.js"></script>
+    <script src="order-store.js"></script>
     <script src="script.js"></script>
   </body>
 </html>

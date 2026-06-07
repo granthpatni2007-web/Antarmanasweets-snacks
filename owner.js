@@ -1,6 +1,6 @@
-const ordersStorageKey = "Antarmana-orders";
-const ordersResetKey = "sapna-patni-orders-reset-2026-04-17";
+const ordersStorageKey = window.antarmanaOrderStore?.storageKey || "Antarmana-orders";
 const ownerAccessSessionKey = "Antarmana-owner-access";
+const ownerDatabaseSessionKey = "Antarmana-owner-db-token";
 const ownerPasscodes = new Set(["owner123", "antarmana123"]);
 
 const currency = new Intl.NumberFormat("en-IN", {
@@ -12,6 +12,10 @@ const currency = new Intl.NumberFormat("en-IN", {
 const dateTimeFormatter = new Intl.DateTimeFormat("en-IN", {
   dateStyle: "medium",
   timeStyle: "short"
+});
+
+const dateFormatter = new Intl.DateTimeFormat("en-IN", {
+  dateStyle: "medium"
 });
 
 const statusLabels = {
@@ -59,6 +63,9 @@ let unreadOrderIds = new Set();
 let latestNotificationText = "Waiting for new orders";
 let notificationAudioContext = null;
 let notificationRingTimeoutId = 0;
+let ordersState = [];
+let dashboardPollingId = 0;
+let ownerTokenPrompted = false;
 const baseOwnerTitle = document.title;
 
 init();
@@ -83,14 +90,15 @@ function init() {
   showOwnerLockScreen();
 }
 
-function initializeDashboard() {
+async function initializeDashboard() {
   if (dashboardInitialized) {
-    renderDashboard();
-    updateNotificationBell();
+    startOrderPolling();
+    await syncDashboardOrders("resume");
     return;
   }
 
   dashboardInitialized = true;
+  await refreshOrdersState({ silent: true });
   syncKnownOrders(getOrders());
   renderDashboard();
   updateNotificationBell();
@@ -115,14 +123,155 @@ function initializeDashboard() {
       syncDashboardOrders("storage");
     }
   });
+  window.addEventListener("antarmana-orders-changed", () => {
+    syncDashboardOrders("local");
+  });
   window.addEventListener("focus", handleOwnerWindowFocus);
+  startOrderPolling();
+}
+
+function isRemoteOrderMode() {
+  return Boolean(window.antarmanaOrderStore?.isRemoteMode?.());
+}
+
+function getOrderPollIntervalMs() {
+  return window.antarmanaOrderStore?.getPollIntervalMs?.() || 15000;
+}
+
+function getOwnerApiToken() {
+  return String(window.sessionStorage.getItem(ownerDatabaseSessionKey) || "").trim();
+}
+
+function setOwnerApiToken(token) {
+  const normalizedToken = String(token || "").trim();
+
+  if (!normalizedToken) {
+    window.sessionStorage.removeItem(ownerDatabaseSessionKey);
+    return "";
+  }
+
+  window.sessionStorage.setItem(ownerDatabaseSessionKey, normalizedToken);
+  return normalizedToken;
+}
+
+function clearOwnerApiToken() {
+  ownerTokenPrompted = false;
+  window.sessionStorage.removeItem(ownerDatabaseSessionKey);
+}
+
+async function ensureRemoteOwnerAccess() {
+  if (!isRemoteOrderMode()) {
+    return true;
+  }
+
+  if (getOwnerApiToken()) {
+    return true;
+  }
+
+  if (ownerTokenPrompted) {
+    return false;
+  }
+
+  ownerTokenPrompted = true;
+  const token = window.prompt("Enter your owner database token to load shared orders.") || "";
+  const savedToken = setOwnerApiToken(token);
+
+  if (!savedToken) {
+    announceNotification("Shared database token is required for owner dashboard access.");
+    return false;
+  }
+
+  return true;
+}
+
+function getOwnerStoreOptions() {
+  const ownerToken = getOwnerApiToken();
+  return ownerToken ? { ownerToken } : {};
+}
+
+function startOrderPolling() {
+  stopOrderPolling();
+
+  if (!isRemoteOrderMode()) {
+    return;
+  }
+
+  dashboardPollingId = window.setInterval(() => {
+    syncDashboardOrders("poll");
+  }, getOrderPollIntervalMs());
+}
+
+function stopOrderPolling() {
+  if (!dashboardPollingId) {
+    return;
+  }
+
+  window.clearInterval(dashboardPollingId);
+  dashboardPollingId = 0;
+}
+
+function handleOrderSyncError(error, fallbackMessage) {
+  console.error("Unable to sync orders", error);
+
+  if (error?.status === 401 || error?.status === 403) {
+    clearOwnerApiToken();
+  }
+
+  if (fallbackMessage) {
+    announceNotification(fallbackMessage);
+  }
+}
+
+function loadOrdersFromLocalStorage() {
+  try {
+    const savedValue = window.localStorage.getItem(ordersStorageKey);
+    return savedValue ? normalizeOrdersCollection(JSON.parse(savedValue)) : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeOrdersCollection(orders) {
+  if (!Array.isArray(orders)) {
+    return [];
+  }
+
+  return orders.map(normalizeOrderTotals);
+}
+
+async function refreshOrdersState(options = {}) {
+  const { silent = false } = options;
+  const orderStore = window.antarmanaOrderStore;
+
+  if (!orderStore?.listOrders) {
+    ordersState = loadOrdersFromLocalStorage();
+    return ordersState;
+  }
+
+  if (!(await ensureRemoteOwnerAccess()) && isRemoteOrderMode()) {
+    return ordersState;
+  }
+
+  try {
+    const nextOrders = await orderStore.listOrders(getOwnerStoreOptions());
+    ordersState = normalizeOrdersCollection(nextOrders);
+  } catch (error) {
+    handleOrderSyncError(
+      error,
+      silent ? "" : "Shared orders abhi load nahin ho pa rahe. Please try again."
+    );
+  }
+
+  return ordersState;
 }
 
 function handleOwnerWindowFocus() {
   syncDashboardOrders("focus");
 }
 
-function syncDashboardOrders(source) {
+async function syncDashboardOrders(source) {
+  await refreshOrdersState({ silent: source === "poll" });
+
   const orders = getOrders();
   const incomingOrders = extractIncomingOrders(orders);
 
@@ -345,6 +494,7 @@ function unlockOwnerDashboard(shouldFocusTop) {
 }
 
 function lockOwnerDashboard() {
+  stopOrderPolling();
   window.sessionStorage.removeItem(ownerAccessSessionKey);
 
   if (ownerDashboardShell) {
@@ -461,6 +611,9 @@ function renderOrderCard(order) {
   const phoneLink = sanitizedPhone ? `<a class="quick-link" href="tel:${sanitizedPhone}">Call Customer</a>` : "";
   const whatsappLink = sanitizedPhone ? `<a class="quick-link" href="https://wa.me/${sanitizedPhone}" target="_blank" rel="noreferrer">WhatsApp</a>` : "";
   const instructions = address.instructions ? escapeHtml(address.instructions) : "No delivery instructions provided.";
+  const deliveryDate = address.deliveryDate
+    ? escapeHtml(formatDeliveryDate(address.deliveryDate))
+    : "No delivery date selected.";
 
   return `
     <article class="order-card">
@@ -502,6 +655,7 @@ function renderOrderCard(order) {
             <div class="order-address-tags">
               <span class="address-chip">${escapeHtml(address.city || "Unknown city")}</span>
             </div>
+            <p class="order-note"><strong>Delivery date:</strong> ${deliveryDate}</p>
             <p class="order-note">${instructions}</p>
           </div>
         </section>
@@ -530,11 +684,14 @@ function renderOrderCard(order) {
 }
 
 function renderOrderItem(item) {
+  const unit = item.unit || "kg";
+  const quantity = formatItemQuantity(Number(item.quantity || 0), unit);
+
   return `
     <div class="order-item-row">
       <div>
         <strong>${escapeHtml(item.name || "Item")}</strong>
-        <small>${escapeHtml(String(item.quantity || 0))} kg x ${currency.format(Number(item.price || 0))}</small>
+        <small>${escapeHtml(quantity)} x ${currency.format(Number(item.price || 0))}</small>
       </div>
       <strong>${currency.format(Number(item.lineTotal || 0))}</strong>
     </div>
@@ -585,9 +742,10 @@ function renderTopProducts(orders) {
 
   orders.forEach((order) => {
     (order.items || []).forEach((item) => {
-      const existing = productCounts.get(item.name) || { quantity: 0, revenue: 0 };
+      const existing = productCounts.get(item.name) || { quantity: 0, revenue: 0, unit: item.unit || "kg" };
       existing.quantity += Number(item.quantity || 0);
       existing.revenue += Number(item.lineTotal || 0);
+      existing.unit = item.unit || existing.unit || "kg";
       productCounts.set(item.name, existing);
     });
   });
@@ -612,7 +770,7 @@ function renderTopProducts(orders) {
         <article class="product-insight-card">
           <div>
             <strong>${escapeHtml(name)}</strong>
-            <span>${stats.quantity} kg ordered</span>
+            <span>${escapeHtml(formatItemQuantity(stats.quantity, stats.unit || "kg"))} ordered</span>
           </div>
           <strong>${currency.format(stats.revenue)}</strong>
         </article>
@@ -637,7 +795,8 @@ function getFilteredOrders(orders) {
         order.address?.street,
         order.address?.city,
         order.address?.state,
-        order.address?.postalCode
+        order.address?.postalCode,
+        order.address?.deliveryDate
       ].join(" ")
     );
 
@@ -679,7 +838,7 @@ function handleOrderListClick(event) {
   }
 }
 
-function handleOrderStatusChange(event) {
+async function handleOrderStatusChange(event) {
   const select = event.target.closest(".status-select");
   if (!select) {
     return;
@@ -688,13 +847,24 @@ function handleOrderStatusChange(event) {
   const orderId = select.dataset.orderId;
   const nextStatus = select.value;
   const orders = getOrders();
+  const currentOrder = orders.find((order) => order.id === orderId);
+  if (!currentOrder) {
+    return;
+  }
+
   const nextOrders = orders.map((order) =>
     order.id === orderId
       ? { ...order, status: nextStatus }
       : order
   );
 
-  setOrders(nextOrders);
+  try {
+    await setOrders(nextOrders);
+  } catch {
+    select.value = currentOrder.status;
+    return;
+  }
+
   trackAnalyticsEvent("owner_order_status_updated", {
     orderId,
     status: nextStatus
@@ -702,7 +872,7 @@ function handleOrderStatusChange(event) {
   renderDashboard();
 }
 
-function loadSampleOrders() {
+async function loadSampleOrders() {
   const orders = getOrders();
   const existingIds = new Set(orders.map((order) => order.id));
   const missingSamples = sampleOrders.filter((order) => !existingIds.has(order.id));
@@ -711,7 +881,12 @@ function loadSampleOrders() {
     return;
   }
 
-  setOrders([...missingSamples, ...orders]);
+  try {
+    await setOrders([...missingSamples, ...orders]);
+  } catch {
+    return;
+  }
+
   renderDashboard();
 }
 
@@ -724,34 +899,61 @@ function clearFilters() {
   renderDashboard();
 }
 
-function clearAllOrders() {
-  setOrders([]);
+async function clearAllOrders() {
+  try {
+    await setOrders([]);
+  } catch {
+    return;
+  }
+
   trackAnalyticsEvent("owner_cleared_orders");
   clearFilters();
+  renderDashboard();
 }
 
 function getOrders() {
-  try {
-    const savedValue = window.localStorage.getItem(ordersStorageKey);
-    return savedValue ? JSON.parse(savedValue).map(normalizeOrderTotals) : [];
-  } catch {
-    return [];
-  }
+  return ordersState;
 }
 
-function setOrders(orders) {
-  window.localStorage.setItem(ordersStorageKey, JSON.stringify(orders));
-  syncKnownOrders(orders);
+async function setOrders(orders) {
+  const previousOrders = [...ordersState];
+  const normalizedOrders = normalizeOrdersCollection(orders);
+
+  if (!(await ensureRemoteOwnerAccess()) && isRemoteOrderMode()) {
+    throw new Error("Owner token required.");
+  }
+
+  try {
+    if (window.antarmanaOrderStore?.replaceOrders) {
+      const persistedOrders = await window.antarmanaOrderStore.replaceOrders(
+        normalizedOrders,
+        getOwnerStoreOptions()
+      );
+      ordersState = normalizeOrdersCollection(persistedOrders);
+    } else {
+      window.localStorage.setItem(ordersStorageKey, JSON.stringify(normalizedOrders));
+      ordersState = normalizedOrders;
+    }
+  } catch (error) {
+    ordersState = previousOrders;
+    handleOrderSyncError(error, "Orders abhi save nahin ho pa rahe. Please try again.");
+    throw error;
+  }
+
+  syncKnownOrders(ordersState);
   updateNotificationBell();
+  return ordersState;
 }
 
 function normalizeOrderTotals(order) {
-  const subtotal = Number(order.subtotal || 0);
+  const subtotal = Number(order.subtotal || order.total || 0);
+  const shipping = Number(order.shipping || 0);
 
   return {
     ...order,
-    shipping: 0,
-    total: subtotal
+    subtotal,
+    shipping,
+    total: subtotal + shipping
   };
 }
 
@@ -770,11 +972,12 @@ function createSampleOrders() {
         street: "42 MG Road, Flat 3B",
         city: "Indore",
         postalCode: "452001",
+        deliveryDate: "2026-04-18",
         instructions: "Call once before reaching the building gate."
       },
       items: [
-        { name: "Bura", price: 120, quantity: 2 },
-        { name: "Bhujia", price: 400, quantity: 1 }
+        { name: "Bhujia", price: 400, quantity: 1 },
+        { name: "Petha", price: 380, quantity: 1 }
       ]
     }),
     createSampleOrder({
@@ -790,10 +993,11 @@ function createSampleOrders() {
         street: "12 Tower Chowk",
         city: "Ujjain",
         postalCode: "456001",
+        deliveryDate: "2026-04-18",
         instructions: "Please deliver after 4 PM."
       },
       items: [
-        { name: "Besan Chakki", price: 600, quantity: 2 },
+        { name: "Besan Chakki", price: 650, quantity: 2 },
         { name: "Shakkarpara", price: 360, quantity: 1 }
       ]
     }),
@@ -810,6 +1014,7 @@ function createSampleOrders() {
         street: "88 Civil Lines",
         city: "Bhopal",
         postalCode: "462001",
+        deliveryDate: "2026-04-17",
         instructions: "Security desk will receive the parcel."
       },
       items: [
@@ -830,12 +1035,12 @@ function createSampleOrders() {
         street: "5 Station Road",
         city: "Dewas",
         postalCode: "455001",
+        deliveryDate: "2026-04-17",
         instructions: ""
       },
       items: [
-        { name: "Sawali", price: 340, quantity: 2 },
-        { name: "Methi Mathri", price: 320, quantity: 2 },
-        { name: "Dry Kachori", price: 450, quantity: 1 }
+        { name: "Sawali", price: 360, quantity: 2 },
+        { name: "Khastha Kachori", price: 35, quantity: 15, unit: "pc" }
       ]
     })
   ];
@@ -844,6 +1049,7 @@ function createSampleOrders() {
 function createSampleOrder(order) {
   const items = order.items.map((item) => ({
     ...item,
+    unit: item.unit || "kg",
     lineTotal: item.price * item.quantity
   }));
   const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
@@ -895,6 +1101,37 @@ function formatDate(isoString) {
   } catch {
     return isoString || "";
   }
+}
+
+function formatDeliveryDate(value) {
+  try {
+    return dateFormatter.format(new Date(`${value}T00:00:00`));
+  } catch {
+    return value || "";
+  }
+}
+
+function formatItemQuantity(quantity, unit) {
+  if (unit === "kg") {
+    const wholeKg = Math.floor(quantity);
+    const grams = Math.round((quantity - wholeKg) * 1000);
+
+    if (wholeKg && grams) {
+      return `${wholeKg} kg ${grams} gram`;
+    }
+
+    if (wholeKg) {
+      return `${wholeKg} kg`;
+    }
+
+    return `${grams} gram`;
+  }
+
+  return `${formatNumber(quantity)} ${unit}`;
+}
+
+function formatNumber(value) {
+  return Number.isInteger(value) ? String(value) : String(value).replace(/\.0+$/, "");
 }
 
 function sanitizePhone(value) {

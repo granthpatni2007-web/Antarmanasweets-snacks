@@ -1,11 +1,5 @@
 const products = [
   {
-    id: "bura",
-    name: "Bura",
-    price: 120,
-    description: "Traditional recipe made with premium ingredients. Perfect for sharing or gifting."
-  },
-  {
     id: "bhujia",
     name: "Bhujia",
     price: 400,
@@ -14,13 +8,13 @@ const products = [
   {
     id: "sawali",
     name: "Sawali",
-    price: 340,
+    price: 360,
     description: "A delightful festive sweet with a smooth bite and rich traditional flavor."
   },
   {
     id: "besan-chakki",
     name: "Besan Chakki",
-    price: 600,
+    price: 650,
     description: "Dense, nutty, and indulgent. Crafted for celebrations, gifting, and special occasions."
   },
   {
@@ -36,16 +30,13 @@ const products = [
     description: "Soft and refreshing with a delicate sweetness that feels light after every bite."
   },
   {
-    id: "methi-mathri",
-    name: "Methi Mathri",
-    price: 320,
-    description: "Flaky, savory, and seasoned with fenugreek for a familiar homemade taste."
-  },
-  {
-    id: "dry-kachori",
-    name: "Dry Kachori",
-    price: 450,
-    description: "A bold, crunchy snack with deep masala notes and long-lasting freshness."
+    id: "khastha-kachori",
+    name: "Khastha Kachori",
+    price: 35,
+    unit: "pc",
+    minQuantity: 15,
+    step: 1,
+    description: "Flaky, crispy kachori made for fresh snack boxes, parties, and tea-time cravings."
   }
 ];
 
@@ -56,7 +47,9 @@ const currency = new Intl.NumberFormat("en-IN", {
 });
 
 const storageKey = "Antarmana-cart";
-const ordersStorageKey = "Antarmana-orders";
+const ordersStorageKey = window.antarmanaOrderStore?.storageKey || "Antarmana-orders";
+const cartLineSeparator = "::";
+const ownerWhatsAppNumber = "917980232362";
 const cart = loadCart();
 
 const productGrid = document.getElementById("productGrid");
@@ -82,12 +75,14 @@ const paymentPanels = document.querySelectorAll(".payment-panel");
 const paymentActionButtons = document.querySelectorAll("[data-complete-payment]");
 const navLinks = document.querySelectorAll(".nav-link");
 const checkoutForm = document.getElementById("checkoutForm");
+const deliveryDateInput = document.getElementById("deliveryDate");
 const toast = document.getElementById("toast");
 const featuredPriceLabel = document.querySelector(".hero-card-featured strong");
 const placeOrderButton = document.getElementById("placeOrderButton");
 const paymentStatusBox = document.getElementById("paymentStatusBox");
 const paymentStatusTitle = document.getElementById("paymentStatusTitle");
 const paymentStatusText = document.getElementById("paymentStatusText");
+const sendScreenshotWhatsAppButton = document.getElementById("sendScreenshotWhatsAppButton");
 let paymentState = createPendingPaymentState("cod");
 
 if (closeCartButton) {
@@ -95,12 +90,13 @@ if (closeCartButton) {
 }
 
 if (featuredPriceLabel) {
-  featuredPriceLabel.textContent = `${currency.format(600)} / kg`;
+  featuredPriceLabel.textContent = `${currency.format(650)} / kg`;
 }
 
 renderProducts();
 renderCart();
 setupScrollSpy();
+setMinimumDeliveryDate();
 updatePaymentGate();
 
 productGrid.addEventListener("click", handleProductGridClick);
@@ -109,6 +105,7 @@ paymentTabs.forEach((button) => button.addEventListener("click", () => setActive
 paymentActionButtons.forEach((button) => {
   button.addEventListener("click", () => completePayment(button.dataset.completePayment));
 });
+sendScreenshotWhatsAppButton?.addEventListener("click", openWhatsAppScreenshotMessage);
 checkoutForm.addEventListener("submit", handleCheckoutSubmit);
 cartButton.addEventListener("click", openCart);
 closeCartButton.addEventListener("click", closeCart);
@@ -140,41 +137,33 @@ function trackAnalyticsEvent(eventName, details = {}) {
 function renderProducts() {
   productGrid.innerHTML = products
     .map(
-      (product) => `
+      (product) => {
+        const minimumNote = getMinimumOrderNote(product);
+
+        return `
         <article class="product-card" data-product-id="${product.id}">
           <div class="product-card-top">
             <h3>${product.name}</h3>
-            <p class="product-price">${currency.format(product.price)}/kg</p>
+            <p class="product-price">${formatProductPrice(product)}</p>
           </div>
           <div class="product-card-body">
             <p>${product.description}</p>
+            ${minimumNote}
             <div class="product-footer">
-              <div class="qty-control">
-                <strong>Qty:</strong>
-                <div class="stepper" aria-label="Quantity selector for ${product.name}">
-                  <button class="qty-button" type="button" data-action="decrease">−</button>
-                  <span class="qty-value">1</span>
-                  <button class="qty-button" type="button" data-action="increase">+</button>
-                </div>
-              </div>
-              <button class="primary-button add-button" type="button" data-action="add">
-                Add to Cart
-              </button>
+              ${getProductActionButtons(product)}
             </div>
           </div>
         </article>
-      `
+      `;
+      }
     )
     .join("");
 
-  productGrid.querySelectorAll('[data-action="decrease"]').forEach((button) => {
-    button.textContent = "-";
-  });
 }
 
 function handleProductGridClick(event) {
   const actionButton = event.target.closest("[data-action]");
-  if (!actionButton) {
+  if (!actionButton || actionButton.disabled) {
     return;
   }
 
@@ -184,29 +173,28 @@ function handleProductGridClick(event) {
     return;
   }
 
-  const qtyValue = card.querySelector(".qty-value");
-  const currentQty = Number(qtyValue.textContent);
+  const product = findProduct(productId);
+  if (!product) {
+    return;
+  }
+
+  const minQuantity = getProductMinQuantity(product);
   const action = actionButton.dataset.action;
 
-  if (action === "increase") {
-    qtyValue.textContent = String(currentQty + 1);
-    return;
-  }
-
-  if (action === "decrease") {
-    qtyValue.textContent = String(Math.max(1, currentQty - 1));
-    return;
-  }
-
   if (action === "add") {
-    addToCart(productId, currentQty);
+    const requestedQuantity = Number(actionButton.dataset.quantity) || minQuantity;
+    const addedQuantity = addToCart(productId, requestedQuantity);
+    if (!addedQuantity) {
+      showToast(`Add ${formatQuantity(minQuantity, product)} first`);
+      return;
+    }
+
     trackAnalyticsEvent("add_to_cart", {
       productId,
-      productName: findProduct(productId)?.name || productId,
-      quantity: currentQty
+      productName: product.name,
+      quantity: addedQuantity
     });
-    showToast(`${findProduct(productId).name} added to cart`);
-    openCart();
+    showToast(`${product.name} added to cart (${formatQuantity(addedQuantity, product)})`);
   }
 }
 
@@ -216,46 +204,73 @@ function addToCart(productId, quantity) {
     return;
   }
 
-  cart[productId] = (cart[productId] || 0) + quantity;
+  const currentQuantity = getCartQuantity(productId);
+  const requestedQuantity = normalizeQuantity(Number(quantity) || 0);
+  const unit = getProductUnit(product);
+  const minQuantity = getProductMinQuantity(product);
+  if (unit === "kg" && currentQuantity < minQuantity && requestedQuantity < minQuantity) {
+    return 0;
+  }
+
+  const minimumAddQuantity = currentQuantity > 0 || unit === "kg"
+    ? getProductStep(product)
+    : minQuantity;
+  const safeQuantity = Math.max(minimumAddQuantity, requestedQuantity);
+  const lineId = createCartLineKey(productId, safeQuantity);
+  cart[lineId] = normalizeQuantity((cart[lineId] || 0) + safeQuantity);
   saveCart();
+  renderProducts();
   renderCart();
   resetPaymentState(getActivePaymentMethod());
+  return safeQuantity;
 }
 
 function handleCartClick(event) {
   const button = event.target.closest("[data-cart-action]");
-  if (!button) {
+  if (!button || button.disabled) {
     return;
   }
 
-  const productId = button.dataset.productId;
+  const lineId = button.dataset.lineId;
+  const productId = button.dataset.productId || getProductIdFromCartLine(lineId);
   const action = button.dataset.cartAction;
-  if (!productId || !cart[productId]) {
+  if (!lineId || !productId || !cart[lineId]) {
     return;
   }
+
+  const product = findProduct(productId);
+  const step = getProductStep(product);
+  const minQuantity = getProductMinQuantity(product);
 
   if (action === "increase") {
-    cart[productId] += 1;
+    const addQuantity = Number(button.dataset.cartQuantity) || step;
+    cart[lineId] = normalizeQuantity(cart[lineId] + addQuantity);
   }
 
   if (action === "decrease") {
-    cart[productId] -= 1;
-    if (cart[productId] <= 0) {
-      delete cart[productId];
+    const removeQuantity = Number(button.dataset.cartQuantity) || step;
+    const nextQuantity = normalizeQuantity(cart[lineId] - removeQuantity);
+    const minimumRemaining = getProductUnit(product) === "kg" ? removeQuantity : minQuantity;
+    if (nextQuantity < minimumRemaining) {
+      delete cart[lineId];
+    } else {
+      cart[lineId] = nextQuantity;
     }
   }
 
   if (action === "remove") {
-    delete cart[productId];
+    delete cart[lineId];
   }
 
+  removeUnderMinimumKgLines(productId, product);
   saveCart();
+  renderProducts();
   renderCart();
   resetPaymentState(getActivePaymentMethod());
 }
 
 function renderCart() {
-  const entries = Object.entries(cart);
+  const entries = getCartEntries();
   const totals = getCartTotals();
 
   cartBadge.textContent = String(totals.itemCount);
@@ -275,20 +290,13 @@ function renderCart() {
   updatePaymentGate();
 
   if (!entries.length) {
-    const emptyMarkup = `
-      <div class="empty-state">
-        Your cart is empty. Add sweets or snacks from the price list to start building your order.
-      </div>
-    `;
-
-    cartItems.innerHTML = emptyMarkup;
-    summaryItems.innerHTML = emptyMarkup;
+    cartItems.innerHTML = "";
+    summaryItems.innerHTML = "";
     return;
   }
 
   cartItems.innerHTML = entries
-    .map(([productId, quantity]) => {
-      const product = findProduct(productId);
+    .map(({ lineId, productId, quantity, product }) => {
       const lineTotal = product.price * quantity;
 
       return `
@@ -296,17 +304,13 @@ function renderCart() {
           <div class="cart-item-top">
             <div>
               <strong>${product.name}</strong>
-              <span>${currency.format(product.price)}/kg</span>
+              <span>${formatProductPrice(product)}</span>
             </div>
             <strong>${currency.format(lineTotal)}</strong>
           </div>
           <div class="cart-item-footer">
-            <div class="cart-item-actions">
-              <button class="mini-button" type="button" data-cart-action="decrease" data-product-id="${productId}">−</button>
-              <span>${quantity} kg</span>
-              <button class="mini-button" type="button" data-cart-action="increase" data-product-id="${productId}">+</button>
-            </div>
-            <button class="mini-button remove-button" type="button" data-cart-action="remove" data-product-id="${productId}">
+            ${getCartQuantityControls(lineId, productId, quantity, product)}
+            <button class="mini-button remove-button" type="button" data-cart-action="remove" data-line-id="${lineId}" data-product-id="${productId}">
               Remove
             </button>
           </div>
@@ -315,21 +319,17 @@ function renderCart() {
     })
     .join("");
 
-  cartItems.querySelectorAll('[data-cart-action="decrease"]').forEach((button) => {
-    button.textContent = "-";
-  });
-
   summaryItems.innerHTML = entries
-    .map(([productId, quantity]) => {
-      const product = findProduct(productId);
+    .map(({ quantity, product }) => {
       const lineTotal = product.price * quantity;
+      const quantityLabel = formatQuantity(quantity, product);
 
       return `
         <article class="summary-item">
           <div class="summary-item-top">
             <div>
               <strong>${product.name}</strong>
-              <span>${quantity} kg</span>
+              <span>${quantityLabel}</span>
             </div>
             <strong>${currency.format(lineTotal)}</strong>
           </div>
@@ -340,20 +340,194 @@ function renderCart() {
 }
 
 function getCartTotals() {
-  const subtotal = Object.entries(cart).reduce((sum, [productId, quantity]) => {
-    const product = findProduct(productId);
-    return sum + (product ? product.price * quantity : 0);
+  const entries = getCartEntries();
+  const subtotal = entries.reduce((sum, { product, quantity }) => {
+    return sum + product.price * quantity;
   }, 0);
 
-  const itemCount = Object.values(cart).reduce((sum, quantity) => sum + quantity, 0);
+  const itemCount = entries.reduce((sum, { quantity }) => sum + quantity, 0);
   const shipping = 0;
   const total = subtotal + shipping;
 
   return { subtotal, shipping, total, itemCount };
 }
 
+function getCartEntries() {
+  return Object.entries(cart)
+    .map(([lineId, quantity]) => {
+      const productId = getProductIdFromCartLine(lineId);
+      const product = findProduct(productId);
+
+      return {
+        lineId,
+        productId,
+        product,
+        quantity: normalizeQuantity(quantity)
+      };
+    })
+    .filter((entry) => entry.product && entry.quantity > 0);
+}
+
 function findProduct(productId) {
   return products.find((product) => product.id === productId);
+}
+
+function getCartQuantity(productId) {
+  return getCartEntries()
+    .filter((entry) => entry.productId === productId)
+    .reduce((sum, entry) => sum + entry.quantity, 0);
+}
+
+function removeUnderMinimumKgLines(productId, product) {
+  if (getProductUnit(product) !== "kg") {
+    return;
+  }
+
+  const remainingQuantity = getCartQuantity(productId);
+  const minimumQuantity = getProductMinQuantity(product);
+  if (remainingQuantity === 0 || remainingQuantity >= minimumQuantity) {
+    return;
+  }
+
+  getCartEntries()
+    .filter((entry) => entry.productId === productId)
+    .forEach((entry) => {
+      delete cart[entry.lineId];
+    });
+}
+
+function createCartLineKey(productId, quantity) {
+  return `${productId}${cartLineSeparator}${formatNumber(normalizeQuantity(quantity))}`;
+}
+
+function getProductIdFromCartLine(lineId) {
+  return String(lineId || "").split(cartLineSeparator)[0];
+}
+
+function getQuantityFromCartLine(lineId) {
+  const rawQuantity = String(lineId || "").split(cartLineSeparator)[1];
+  return normalizeQuantity(Number(rawQuantity) || 0);
+}
+
+function getProductUnit(product) {
+  return product?.unit || "kg";
+}
+
+function getProductMinQuantity(product) {
+  return Number(product?.minQuantity || 1);
+}
+
+function getProductStep(product) {
+  return Number(product?.step || (getProductUnit(product) === "kg" ? 0.5 : 1));
+}
+
+function formatProductPrice(product) {
+  return `${currency.format(product.price)} / ${getProductUnit(product)}`;
+}
+
+function formatQuantity(quantity, product) {
+  const unit = getProductUnit(product);
+  const value = normalizeQuantity(quantity);
+
+  if (unit === "kg") {
+    return formatWeightQuantity(value);
+  }
+
+  return `${formatNumber(value)} ${unit}`;
+}
+
+function formatCartActionQuantity(quantity, product) {
+  const value = normalizeQuantity(quantity);
+  if (getProductUnit(product) === "kg") {
+    return value < 1 ? `${Math.round(value * 1000)}g` : `${formatNumber(value)}kg`;
+  }
+
+  return formatQuantity(value, product);
+}
+
+function getMinimumOrderNote(product) {
+  return "";
+}
+
+function getProductActionButtons(product) {
+  const minQuantity = getProductMinQuantity(product);
+  const step = getProductStep(product);
+
+  if (getProductUnit(product) === "kg") {
+    const hasMinimumQuantity = getCartQuantity(product.id) >= minQuantity;
+    const disabledAttribute = hasMinimumQuantity ? "" : "disabled aria-disabled=\"true\"";
+
+    return `
+      <div class="product-action-group">
+        <button class="primary-button add-button" type="button" data-action="add" data-quantity="${minQuantity}">
+          Add ${formatQuantity(minQuantity, product)}
+        </button>
+        <button class="secondary-button add-button add-button-soft" type="button" data-action="add" data-quantity="${step}" ${disabledAttribute}>
+          Add ${formatQuantity(step, product)}
+        </button>
+      </div>
+    `;
+  }
+
+  return `
+    <button class="primary-button add-button" type="button" data-action="add" data-quantity="${minQuantity}">
+      Add ${formatQuantity(minQuantity, product)}
+    </button>
+  `;
+}
+
+function getCartQuantityControls(lineId, productId, quantity, product) {
+  const step = getProductStep(product);
+  const minQuantity = getProductMinQuantity(product);
+  const quantityLabel = formatQuantity(quantity, product);
+
+  if (getProductUnit(product) === "kg") {
+    const baseLineQuantity = getQuantityFromCartLine(lineId);
+    const actionQuantity =
+      baseLineQuantity > 0 && baseLineQuantity < minQuantity ? step : minQuantity;
+    const actionQuantityLabel = formatCartActionQuantity(actionQuantity, product);
+
+    return `
+      <div class="cart-item-actions cart-item-actions-stacked">
+        <span class="cart-quantity-label">${quantityLabel}</span>
+        <div class="cart-action-buttons">
+          <button class="mini-button" type="button" data-cart-action="decrease" data-line-id="${lineId}" data-product-id="${productId}" data-cart-quantity="${actionQuantity}">- ${actionQuantityLabel}</button>
+          <button class="mini-button" type="button" data-cart-action="increase" data-line-id="${lineId}" data-product-id="${productId}" data-cart-quantity="${actionQuantity}">+ ${actionQuantityLabel}</button>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="cart-item-actions">
+      <button class="mini-button" type="button" data-cart-action="decrease" data-line-id="${lineId}" data-product-id="${productId}">- ${formatQuantity(step, product)}</button>
+      <span>${quantityLabel}</span>
+      <button class="mini-button" type="button" data-cart-action="increase" data-line-id="${lineId}" data-product-id="${productId}" data-cart-quantity="${step}">+ ${formatQuantity(step, product)}</button>
+    </div>
+  `;
+}
+
+function formatWeightQuantity(quantity) {
+  const wholeKg = Math.floor(quantity);
+  const grams = Math.round((quantity - wholeKg) * 1000);
+
+  if (wholeKg && grams) {
+    return `${wholeKg} kg ${grams} gram`;
+  }
+
+  if (wholeKg) {
+    return `${wholeKg} kg`;
+  }
+
+  return `${grams} gram`;
+}
+
+function formatNumber(value) {
+  return Number.isInteger(value) ? String(value) : String(value).replace(/\.0+$/, "");
+}
+
+function normalizeQuantity(value) {
+  return Math.round((Number(value) || 0) * 100) / 100;
 }
 
 function openCart() {
@@ -417,6 +591,10 @@ function getActivePaymentMethod() {
 }
 
 function isPaymentCompleted(method) {
+  if (method === "qr") {
+    return true;
+  }
+
   return paymentState.paid && paymentState.method === method;
 }
 
@@ -486,8 +664,9 @@ function updatePaymentGate() {
       return;
     }
 
-    paymentStatusTitle.textContent = "QR Payment Confirmed";
-    paymentStatusText.textContent = `Payment reference ${paymentState.reference} confirmed. You can place the order now.`;
+    paymentStatusTitle.textContent = "QR Payment Selected";
+    paymentStatusText.textContent =
+      "After payment, place the order and share the payment screenshot on WhatsApp.";
     return;
   }
 
@@ -496,10 +675,10 @@ function updatePaymentGate() {
   paymentStatusText.textContent =
     activePayment === "cod"
       ? "Select cash on delivery first to unlock order placement."
-      : "Confirm QR payment first to unlock order placement.";
+      : "Choose QR payment to unlock order placement.";
 }
 
-function handleCheckoutSubmit(event) {
+async function handleCheckoutSubmit(event) {
   event.preventDefault();
 
   const totals = getCartTotals();
@@ -517,7 +696,7 @@ function handleCheckoutSubmit(event) {
     showToast(
       activePayment === "cod"
         ? "Select cash on delivery first before placing the order"
-        : "Confirm QR payment first before placing the order"
+        : "Choose QR payment before placing the order"
     );
     updatePaymentGate();
     return;
@@ -525,24 +704,40 @@ function handleCheckoutSubmit(event) {
 
   const formData = new FormData(checkoutForm);
   const order = buildOrderPayload(formData, activePayment, totals);
+  let savedOrder = order;
 
-  saveOrder(order);
+  try {
+    const persistedOrder = await saveOrder(order);
+    if (persistedOrder && typeof persistedOrder === "object") {
+      savedOrder = {
+        ...order,
+        ...persistedOrder
+      };
+    }
+  } catch (error) {
+    console.error("Unable to save order", error);
+    showToast("Order save nahin hua. Please try again.");
+    return;
+  }
+
   trackAnalyticsEvent("order_submitted", {
-    orderId: order.id,
-    paymentMethod: order.paymentMethod,
-    total: order.total,
-    itemCount: order.items.length
+    orderId: savedOrder.id,
+    paymentMethod: savedOrder.paymentMethod,
+    total: savedOrder.total,
+    itemCount: savedOrder.items.length
   });
-  showToast(`Order ${order.id} saved for the owner dashboard`);
+  showToast(`Order ${savedOrder.id} saved. Opening WhatsApp...`);
   checkoutForm.reset();
   closeCart();
 
   Object.keys(cart).forEach((key) => delete cart[key]);
   saveCart();
+  renderProducts();
   renderCart();
   resetPaymentState("cod");
   setActivePayment("cod");
   document.getElementById("home").scrollIntoView({ behavior: "smooth", block: "start" });
+  openWhatsAppOrderMessage(savedOrder);
 }
 
 function showToast(message) {
@@ -557,10 +752,32 @@ function showToast(message) {
 function loadCart() {
   try {
     const savedValue = window.localStorage.getItem(storageKey);
-    return savedValue ? JSON.parse(savedValue) : {};
+    return normalizeStoredCart(savedValue ? JSON.parse(savedValue) : {});
   } catch {
     return {};
   }
+}
+
+function normalizeStoredCart(savedCart) {
+  if (!savedCart || typeof savedCart !== "object" || Array.isArray(savedCart)) {
+    return {};
+  }
+
+  return Object.entries(savedCart).reduce((normalizedCart, [lineId, quantity]) => {
+    const productId = getProductIdFromCartLine(lineId);
+    const product = findProduct(productId);
+    const safeQuantity = normalizeQuantity(quantity);
+
+    if (!product || safeQuantity <= 0) {
+      return normalizedCart;
+    }
+
+    const safeLineId = lineId.includes(cartLineSeparator)
+      ? lineId
+      : createCartLineKey(productId, safeQuantity);
+    normalizedCart[safeLineId] = normalizeQuantity((normalizedCart[safeLineId] || 0) + safeQuantity);
+    return normalizedCart;
+  }, {});
 }
 
 function saveCart() {
@@ -576,20 +793,92 @@ function loadOrders() {
   }
 }
 
-function saveOrder(order) {
+async function saveOrder(order) {
+  if (window.antarmanaOrderStore?.createOrder) {
+    return window.antarmanaOrderStore.createOrder(order);
+  }
+
   const orders = loadOrders();
   orders.unshift(order);
   window.localStorage.setItem(ordersStorageKey, JSON.stringify(orders));
+  return order;
+}
+
+function openWhatsAppOrderMessage(order) {
+  const whatsappUrl = createWhatsAppOrderUrl(order);
+  trackAnalyticsEvent("whatsapp_order_message_opened", {
+    orderId: order.id,
+    total: order.total,
+    paymentMethod: order.paymentMethod
+  });
+  window.location.href = whatsappUrl;
+}
+
+function openWhatsAppScreenshotMessage() {
+  const whatsappUrl = createWhatsAppScreenshotUrl();
+  trackAnalyticsEvent("whatsapp_payment_screenshot_opened", {
+    paymentMethod: "qr"
+  });
+  window.location.href = whatsappUrl;
+}
+
+function createWhatsAppOrderUrl(order) {
+  const message = encodeURIComponent(buildWhatsAppOrderMessage(order));
+  return `https://wa.me/${ownerWhatsAppNumber}?text=${message}`;
+}
+
+function createWhatsAppScreenshotUrl() {
+  const message = encodeURIComponent(
+    "Hello, I am sending my payment screenshot for Antarmana Sweets & Snacks."
+  );
+  return `https://wa.me/${ownerWhatsAppNumber}?text=${message}`;
+}
+
+function buildWhatsAppOrderMessage(order) {
+  const itemLines = order.items.map((item) => {
+    const product = findProduct(item.id) || item;
+    const quantityLabel = formatQuantity(item.quantity, product);
+    return `- ${item.name}: ${quantityLabel} x ${currency.format(item.price)} = ${currency.format(item.lineTotal)}`;
+  });
+
+  const addressParts = [
+    order.address.street,
+    order.address.city,
+    order.address.postalCode
+  ].filter(Boolean);
+  const deliveryDate = order.address.deliveryDate || "Not selected";
+  const instructions = order.address.instructions || "None";
+  const paymentStatus = order.paymentStatus === "paid" ? "Paid" : "Pending";
+
+  return [
+    "New website order",
+    `Order ID: ${order.id}`,
+    `Customer: ${order.customer.name}`,
+    `Phone: ${order.customer.phone}`,
+    `Payment: ${order.paymentLabel}`,
+    `Payment Status: ${paymentStatus}`,
+    order.paymentReference ? `Payment Reference: ${order.paymentReference}` : null,
+    `Delivery Date: ${deliveryDate}`,
+    `Address: ${addressParts.join(", ")}`,
+    `Instructions: ${instructions}`,
+    "",
+    "Items:",
+    ...itemLines,
+    "",
+    `Total: ${currency.format(order.total)}`,
+    "Please confirm this order."
+  ]
+    .filter((line) => line !== null)
+    .join("\n");
 }
 
 function buildOrderPayload(formData, paymentType, totals) {
-  const items = Object.entries(cart).map(([productId, quantity]) => {
-    const product = findProduct(productId);
-
+  const items = getCartEntries().map(({ productId, product, quantity }) => {
     return {
       id: product.id,
       name: product.name,
       price: product.price,
+      unit: getProductUnit(product),
       quantity,
       lineTotal: product.price * quantity
     };
@@ -604,6 +893,7 @@ function buildOrderPayload(formData, paymentType, totals) {
     street: String(formData.get("street") || "").trim(),
     city: String(formData.get("city") || "").trim(),
     postalCode: String(formData.get("postalCode") || "").trim(),
+    deliveryDate: String(formData.get("deliveryDate") || "").trim(),
     instructions: String(formData.get("instructions") || "").trim()
   };
 
@@ -614,9 +904,9 @@ function buildOrderPayload(formData, paymentType, totals) {
     status: "new",
     paymentMethod: paymentType,
     paymentLabel: getPaymentLabel(paymentType),
-    paymentStatus: paymentType === "cod" ? "pending" : "paid",
-    paymentReference: paymentType === "cod" ? "" : paymentState.reference,
-    paymentPaidAt: paymentType === "cod" ? "" : paymentState.paidAt,
+    paymentStatus: "pending",
+    paymentReference: "",
+    paymentPaidAt: "",
     customer,
     address,
     items,
@@ -637,6 +927,18 @@ function getPaymentLabel(paymentType) {
   }
 
   return "QR Payment";
+}
+
+function setMinimumDeliveryDate() {
+  if (!deliveryDateInput) {
+    return;
+  }
+
+  const today = new Date();
+  const localDate = new Date(today.getTime() - today.getTimezoneOffset() * 60000)
+    .toISOString()
+    .slice(0, 10);
+  deliveryDateInput.min = localDate;
 }
 
 function setupScrollSpy() {

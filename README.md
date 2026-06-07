@@ -4,9 +4,9 @@ Primary website:
 
 [https://granthpatni2007-web.github.io/Antarmanasweets-snacks/](https://granthpatni2007-web.github.io/Antarmanasweets-snacks/)
 
-GitHub Pages fallback:
+Root redirect:
 
-[https://granthpatni2007-web.github.io/Antarmanasweets-snacks/](https://granthpatni2007-web.github.io/Antarmanasweets-snacks/)
+[https://granthpatni2007-web.github.io/](https://granthpatni2007-web.github.io/)
 
 Files for the live storefront:
 
@@ -17,3 +17,5 @@ Files for the live storefront:
 - `script.js`
 - `owner.js`
 - `analytics.js`
+- `site-config.js`
+- `order-store.js`
