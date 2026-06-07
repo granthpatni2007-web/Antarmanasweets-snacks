@@ -2,7 +2,7 @@
 
 Primary website:
 
-[https://www.antarmanasweets.in/](https://www.antarmanasweets.in/)
+[https://granthpatni2007-web.github.io/Antarmanasweets-snacks/](https://granthpatni2007-web.github.io/Antarmanasweets-snacks/)
 
 GitHub Pages fallback:
 
